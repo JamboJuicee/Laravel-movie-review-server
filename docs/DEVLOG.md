@@ -34,7 +34,7 @@
     }
 ```
 
-## Data insertion using DataGrip
+## 3. Data insertion using DataGrip
 1. Open the project in the datagrip
 2. Click on the **Data Source**
 3. Select the database, for this project it should be `database.sqlite`
@@ -44,4 +44,73 @@
 7. Restart datagrip before inserting values in the database
 8. It should work!
 
-##
+## 4. Creating the model
+- `herd php artisan make:model {NAME}`
+
+Import this module to both models:
+```
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+```
+
+1. This structure for the Movie model honors one-many relationship between movie and reviews.
+```
+    class Movie extends Model
+    {
+        use HasUuids;
+
+        public function reviews() {
+            return $this -> hasMany(Review::class);
+        }
+    }
+```
+
+2. This structure for the Review model honors belongsTo relationship between review and movie.
+```
+    class Review extends Model
+    {
+        use HasUuids;
+
+        protected $fillable = ['movie_id', 'email', 'message', 'rating'];
+
+        public function Movie() {
+            return $this -> belongsTo(Movie::class);
+        }
+    }
+```
+
+## 5. Create controller
+- `herd php artisan make:controller MovieController`
+- Functions implemented in the MovieController:
+```
+class MovieController extends Controller
+{
+    public function getAllMovies() {
+        return Movie::all();
+    }
+
+    public function getReviews(Movie $movie) {
+        return $movie->reviews;
+    }
+
+    public function addReview(Request $request) {
+        $review = new Review($request->all());
+        $review->save();
+
+        return response()->json($review, 201);
+    }
+}
+```
+
+Also don't forget to import both models to the controller:
+```
+use App\Models\Movie
+use App\Models\Review
+```
+
+# 6. Create 3 api routes:
+- Import controller: `use App\Http\Controllers\MovieController;`
+```
+Route::get('/movies', [MovieController::class, 'getAllMovies']);
+Route::get('/movies/{movie}/reviews', [MovieController::class, 'getReviews']);
+Route::post('/movies/{movie}/reviews', [MovieController::class, 'addReview']);
+```
