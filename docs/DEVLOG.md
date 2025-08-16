@@ -1,4 +1,4 @@
-# Laravel movie reviewer server
+# Laravel movie reviewer server: Part 1
 
 ## 1. Install api
 - `herd php artisan instal:api`
@@ -114,3 +114,88 @@ Route::get('/movies', [MovieController::class, 'getAllMovies']);
 Route::get('/movies/{movie}/reviews', [MovieController::class, 'getReviews']);
 Route::post('/movies/{movie}/reviews', [MovieController::class, 'addReview']);
 ```
+
+## 7. CORS
+1. Publish cors: `herd php artisan config:publish cors`
+2. Goto /config/cors.php and add the client address (should be localhost:5500) in the allowed origins field.
+
+# Server-side: Part 2
+- The program worked from the very first test and w/o any bugs, now it's time to add other functionality.
+
+1. Add server-side validation
+Of course this should feature single-responsibility
+
+We will need to import 5 modules:
+```
+    use Illuminate\Http\Response;
+    use Illuminate\Support\Facades\Validator;
+    use Illuminate\Support\Facades\Log;
+    use Illuminate\Support\Facades\Mail;
+    use App\Mail\ThankYou;
+```
+
+The 3 methods in the Movie Controller were re-designed
+```
+public function getAllMovies() {
+        Log::info("Retrieving all movies");
+        return response()->json(Movie::all());
+    }
+
+    public function getReviews(Movie $movie) {
+        Log::info("Retrieving all reviews for a movie with id: " . $movie->id);
+        return response()->json($movie->reviews);
+    }
+
+    public function addReview(Request $request) {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|max:255',
+            'message' => 'required|string|min:5|max:255',
+            'rating' => 'required|integer|min:1|max:5',
+            'movie_id' => 'required|exists:movies,id'
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning("Review validation failed");
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $review = Review::create($validator->validated());
+        Log::info("Review saved successfully");
+
+        $movie = Movie::find($request->movie_id);
+        Mail::to($review->email)->send(new ThankYou($movie, $review));
+        Log::info("Email sent");
+        
+        return response()->json($review, 201);
+    }
+```
+
+- To make the mail work, we should run: `herd php artisan make:mail ThankYou`
+- This  creates `resources/views/thank-you-mail.blade.php` in which the following structure should be inserted:
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thank you for your review</title>
+</head>
+<body>
+    <h1>Thank you for your review</h1>
+
+    <h2>Review details</h2>
+
+    <ul>
+        <li>Movie title: {{ $movie -> title }}</li>
+        <li>Message: {{ $review -> message }}</li>
+        <li>Rating: {{ $review -> rating }} stars</li>
+    </ul>
+
+    <p>This message was sent to {{ $review -> email }}.</p>
+</body>
+</html>
+```
+
+- Now this should work
